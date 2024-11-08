@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            text-align: center;
+            margin-top: 20px;
+        }
+        #book-list {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+        }
+        #book-form {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button.delete-btn, button.edit-btn {
+            background-color: #d9534f;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Search</title>
+</head>
+<body>
+    <h1>Book Search</h1>
+    <input type="text" id="searchBox" placeholder="Search for a book by name, author, or ISBN" onkeyup="searchBooks()">
+    <div id="searchResults"></div>
+
+    <script>
+        async function searchBooks() {
+            const query = document.getElementById('searchBox').value;
+            const response = await fetch(`/api/books/search?q=${query}`);
+            const result = await response.json();
+            document.getElementById('searchResults').innerHTML = result.books.map(book => `
+                <div>
+                    <h3>${book.Name}</h3>
+                    <p>Author: ${book.author}</p>
+                    <p>Price: ${book.price}</p>
+                    <p>ISBN: ${book.ISBN}</p>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
+<body>
+    <h1>Book Management System</h1>
+    
+    <div id="book-list">
+        <h2>Book List</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Author</th>
+                    <th>Price</th>
+                    <th>Availability</th>
+                    <th>ISBN</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="books-table">
+                <!-- Books will be loaded here dynamically -->
+            </tbody>
+        </table>
+    </div>
+
+    <div id="book-form">
+        <h2 id="form-title">Add New Book</h2>
+        <input type="text" id="book-name" placeholder="Book Name" required>
+        <input type="text" id="book-author" placeholder="Author" required>
+        <input type="number" id="book-price" placeholder="Price" required>
+        <input type="number" id="book-isbn" placeholder="ISBN" required>
+        <button id="submit-button" onclick="addOrUpdateBook()">Add Book</button>
+    </div>
+
+    <script>
+        let isEditing = false;
+        let currentBookId = null;
+
+        // Fetch and display all books
+        async function getBooks() {
+            const response = await fetch('/api/books');
+            const data = await response.json();
+            const books = data.books;
+            const booksTable = document.getElementById('books-table');
+            booksTable.innerHTML = ''; // Clear existing rows
+            
+            books.forEach(book => {
+                const row = `
+                    <tr>
+                        <td>${book.id}</td>
+                        <td>${book.Name}</td>
+                        <td>${book.author}</td>
+                        <td>${book.price}</td>
+                        <td>${book.availability ? 'Available' : 'Not Available'}</td>
+                        <td>${book.ISBN}</td>
+                        <td>
+                            <button class="edit-btn" onclick="editBook(${book.id})">Edit</button>
+                            <button class="delete-btn" onclick="deleteBook(${book.id})">Delete</button>
+                        </td>
+                    </tr>
+                `;
+                booksTable.innerHTML += row;
+            });
+        }
+
+        // Add or Update a book based on the form state
+        async function addOrUpdateBook() {
+            const name = document.getElementById('book-name').value;
+            const author = document.getElementById('book-author').value;
+            const price = document.getElementById('book-price').value;
+            const isbn = document.getElementById('book-isbn').value;
+
+            const bookData = {
+                Name: name,
+                author: author,
+                price: parseInt(price),
+                ISBN: parseInt(isbn)
+            };
+
+            if (isEditing) {
+                // Update existing book
+                const response = await fetch(`/api/books/update/${currentBookId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(bookData)
+                });
+
+                if (response.ok) {
+                    alert('Book updated successfully!');
+                    resetForm();
+                    getBooks(); // Refresh the book list
+                } else {
+                    alert('Failed to update the book.');
+                }
+            } else {
+                // Add new book
+                const response = await fetch('/api/books', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(bookData)
+                });
+
+                if (response.ok) {
+                    alert('Book added successfully!');
+                    getBooks(); // Refresh the book list
+                } else {
+                    alert('Failed to add the book.');
+                }
+            }
+        }
+
+        // Edit book: populate the form with existing data and switch to edit mode
+        async function editBook(bookId) {
+            const response = await fetch(`/api/books/${bookId}`);
+            const book = await response.json();
+            
+            document.getElementById('book-name').value = book.Name;
+            document.getElementById('book-author').value = book.author;
+            document.getElementById('book-price').value = book.price;
+            document.getElementById('book-isbn').value = book.ISBN;
+
+            // Set form to edit mode
+            isEditing = true;
+            currentBookId = bookId;
+            document.getElementById('form-title').innerText = "Edit Book";
+            document.getElementById('submit-button').innerText = "Update Book";
+        }
+
+        // Delete a book
+        async function deleteBook(bookId) {
+            const response = await fetch(`/api/books/remove/${bookId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                alert('Book deleted successfully!');
+                getBooks(); // Refresh the book list
+            } else {
+                alert('Failed to delete the book.');
+            }
+        }
+
+        // Reset form to default (Add Book mode)
+        function resetForm() {
+            document.getElementById('book-name').value = '';
+            document.getElementById('book-author').value = '';
+            document.getElementById('book-price').value = '';
+            document.getElementById('book-isbn').value = '';
+            isEditing = false;
+            currentBookId = null;
+            document.getElementById('form-title').innerText = "Add New Book";
+            document.getElementById('submit-button').innerText = "Add Book";
+        }
+
+        // Load books on page load
+        window.onload = getBooks;
+    </script>
+</body>
+</html>
